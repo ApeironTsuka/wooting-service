@@ -1,0 +1,19 @@
+{
+  "name": "wooting-service",
+  "version": "1.0.0",
+  "description": "Background service for controlling Wooting One and Two keyboards",
+  "main": "wooting.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "ApeironTsuka",
+  "license": "ISC",
+  "dependencies": {
+    "wooting-sdk": "github:ApeironTsuka/wooting-sdk",
+    "tserv-service": "github:ApeironTsuka/tserv-servce"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ApeironTsuka/wooting-service.git"
+  }
+}
