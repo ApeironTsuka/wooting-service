@@ -11,7 +11,7 @@ class wootingService {
     this.emitter.init('wooting', { keep: true });
     let kb = this.kb = Keyboard.get(), tk = this.tk = new Toolkit();
     if (!kb) { console.log('No keyboard detected'); process.exit(); }
-    let renderer = this.renderer = new Renderer(kb), layers = this.layers = [ { name: 'Background', layer: new bgLayer(), uid: 'bg' }, { name: 'Locks', layer: new lockLayer(tk), uid: 'locks' } ];
+    let renderer = this.renderer = new Renderer(kb), layers = this.layers = [ this.bgLayer = { name: 'Background', layer: new bgLayer(), uid: 'bg' }, this.locksLayer = { name: 'Locks', layer: new lockLayer(tk), uid: 'locks' } ];
     kb.leds.mode = Keyboard.Modes.Array;
     kb.leds.autoUpd = true;
     kb.leds.init();
@@ -34,7 +34,7 @@ class wootingService {
     this.connections.push(c);
     c.on('disconnected', () => {
       c.layers.forEach((l) => {
-        let ind, x = this.layers.find((e, i) => { let ret = e.uid == l.uid; if (ret) { ind = i; } return ret; });
+        let ind, x = this.layers.find((e, i) => { let ret = e.uid == `${c.id}-${l.uid}`; if (ret) { ind = i; } return ret; });
         this.renderer.remLayer(l.layer);
         this.layers.splice(ind, 1);
       });
@@ -53,6 +53,10 @@ class wootingService {
       c.layers.push(l = { name, layer: new Layer(), uid });
       this.layers.push({ name: `${c.id}-${name}`, layer: l.layer, uid: `${c.id}-${uid}` });
       this.renderer.addLayer(l.layer);
+      this.renderer.moveLayer(this.locksLayer.layer, this.renderer.layers.length-1);
+      x = this.layers.find((e, i) => { let ret = e.uid == this.locksLayer.uid; if (ret) { l = i; } return ret; });
+      this.layers.splice(l, 1);
+      this.layers.push(this.locksLayer);
       reply(uid);
     })
     .on('unregisterLayer', ({ uid }, reply) => {
