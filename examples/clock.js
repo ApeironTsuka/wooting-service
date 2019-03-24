@@ -1,9 +1,9 @@
 const { serviceEmitter } = require('tserv-service'), fs = require('fs');
 
-let client = new serviceEmitter();
+let kb = new serviceEmitter();
 
 function apiReady() {
-  class clockLayer extends client.api.Layer {
+  class clockLayer extends kb.api.Layer {
     constructor(uid, isTwo) {
       super(isTwo, uid);
       this.alpha = 255;
@@ -14,7 +14,7 @@ function apiReady() {
     tick() {
       let dt = new Date(), { alpha } = this;
       let printNum = (n, row) => {
-        let r, g, b, o = row == 4 && client.api.isANSI ? 2 : 1;
+        let r, g, b, o = row == 4 && kb.api.isANSI ? 2 : 1;
         b = Math.floor(n / 10); n -= b * 10;
         g = Math.floor(n / 5); n -= g * 5;
         r = n;
@@ -27,12 +27,14 @@ function apiReady() {
       printNum(dt.getHours(), 2);
       printNum(dt.getMinutes(), 3);
       printNum(dt.getSeconds(), 4);
-      client.api.updateLayer(this.uid, this, true).catch(() => this.stop());
+      kb.api.updateLayer(this.uid, this, true).catch(() => this.stop());
     }
   }
-  client.api.registerLayer('clock').then((uid) => { let l = new clockLayer(uid, client.api.isTwo); });
+  kb.api.registerLayer('clock').then((uid) => { let l = new clockLayer(uid, kb.api.isTwo); });
+  kb.extendApi('config');
+  kb.api.config.getLayers().then(console.log);
 }
 
-client.setIdentifier('clock');
-client.connectTo({ name: 'wooting', servicePath: `${process.cwd()}/..` });
-client.on('ready', function () { client.loadApi(); client.api.on('ready', apiReady); });
+kb.setIdentifier('clock');
+kb.connectTo({ name: 'wooting', servicePath: `${process.cwd()}/..` });
+kb.on('ready', () => { kb.loadApi(); kb.api.on('ready', apiReady); });

@@ -69,23 +69,6 @@ class Layer {
   }
 }
 class wootingConsts extends EventEmitter {
-  get RegisterLayer() { return 0; }
-  get UnregisterLayer() { return 1; }
-  get UpdateLayer() { return 2; }
-  get WatchAnalog() { return 3; }
-  get UnwatchAnalog() { return 4; }
-  get WatchProfile() { return 5; }
-  get UnwatchProfile() { return 6; }
-  get ProfileChanged() { return 7; }
-  get AnalogUpdate() { return 8; }
-  get Shutdown() { return 9; }
-  get GetKeyboardInfo() { return 10; }
-  get TakeControl() { return 11; }
-  get ReleaseControl() { return 12; }
-  get Feature() { return 13; }
-  get Buffer() { return 14; }
-  get HideLayer() { return 15; }
-  get ShowLayer() { return 16; }
   get Analog() { return AKeys; }
   get LEDs() { return LKeys; }
 }
@@ -94,14 +77,14 @@ class wootingClientApi extends wootingConsts {
     super();
     this.emitter = emitter;
     emitter.api = this;
-    emitter.on(this.ProfileChanged, (d) => this.emit(this.ProfileChanged, d.index, d.map));
-    emitter.on(this.AnalogUpdate, ({ update }) => {
+    emitter.on('profileChanged', (d) => this.emit('profileChanged', d.index, d.map));
+    emitter.on('analogUpdate', ({ update }) => {
       let { allKeys } = this, { total, keys } = update;
       allKeys.fill(0);
       for (let i = 1, l = keys.length; i < l; i += 2) { allKeys[keys[i - 1]] = keys[i] & 0xff; }
-      this.emit(this.AnalogUpdate, update);
+      this.emit('analogUpdate', update);
     });
-    emitter.on(this.Shutdown, () => this.emit(this.Shutdown));
+    emitter.on('shutdown', () => this.emit('shutdown'));
     this.getKeyboardInfo().then(({ firmware, isTwo, isANSI, profile }) => {
       this.firmware = firmware;
       this.isTwo = isTwo;
@@ -116,43 +99,52 @@ class wootingClientApi extends wootingConsts {
   }
   getKeyboardInfo() {
     if (!this.emitter.isConnected) { return Promise.reject(dcError()); }
-    return new Promise((resolve, reject) => this.emitter.send({ event: this.GetKeyboardInfo, data: {}, callback: resolve }));
+    return new Promise((resolve, reject) => this.emitter.send({ event: 'getKeyboardInfo', data: {}, callback: resolve }));
   }
   registerLayer(name) {
     if (!this.emitter.isConnected) { return Promise.reject(dcError()); }
-    return new Promise((resolve, reject) => this.emitter.send({ event: this.RegisterLayer, data: { name }, callback: resolve }));
+    return new Promise((resolve, reject) => this.emitter.send({ event: 'registerLayer', data: { name }, callback: resolve }));
   }
   unregisterLayer(uid) {
     if (!this.emitter.isConnected) { return Promise.reject(dcError()); }
-    return new Promise((resolve, reject) => this.emitter.send({ event: this.UnregisterLayer, data: { uid }, callback: resolve }));
+    return new Promise((resolve, reject) => this.emitter.send({ event: 'unregisterLayer', data: { uid }, callback: resolve }));
   }
   updateLayer(uid, layer, alpha) {
     if (!this.emitter.isConnected) { return Promise.reject(dcError()); }
-    return new Promise((resolve, reject) => this.emitter.send({ event: this.UpdateLayer, data: { uid, map: layer.map, alpha }, callback: resolve }));
+    return new Promise((resolve, reject) => this.emitter.send({ event: 'updateLayer', data: { uid, map: layer.map, alpha }, callback: resolve }));
   }
   watchAnalog() {
     if (!this.emitter.isConnected) { return Promise.reject(dcError()); }
-    return new Promise((resolve, reject) => this.emitter.send({ event: this.WatchAnalog, data: {}, callback: resolve }));
+    return new Promise((resolve, reject) => this.emitter.send({ event: 'watch-analog', data: {}, callback: resolve }));
   }
   unwatchAnalog() {
     if (!this.emitter.isConnected) { return Promise.reject(dcError()); }
-    return new Promise((resolve, reject) => this.emitter.send({ event: this.UnwatchAnalog, data: {}, callback: resolve }));
+    return new Promise((resolve, reject) => this.emitter.send({ event: 'unwatchAnalog', data: {}, callback: resolve }));
   }
   watchProfile() {
     if (!this.emitter.isConnected) { return Promise.reject(dcError()); }
-    return new Promise((resolve, reject) => this.emitter.send({ event: this.WatchProfile, data: {}, callback: resolve }));
+    return new Promise((resolve, reject) => this.emitter.send({ event: 'watchProfile', data: {}, callback: resolve }));
   }
   unwatchProfile() {
     if (!this.emitter.isConnected) { return Promise.reject(dcError()); }
-    return new Promise((resolve, reject) => this.emitter.send({ event: this.UnwatchProfile, data: {}, callback: resolve }));
+    return new Promise((resolve, reject) => this.emitter.send({ event: 'unwatchProfile', data: {}, callback: resolve }));
   }
   hideLayer(uid) {
     if (!this.emitter.isConnected) { return Promise.reject(dcError()); }
-    return new Promise((resolve, reject) => this.emitter.send({ event: this.HideLayer, data: { uid }, callback: resolve }));
+    return new Promise((resolve, reject) => this.emitter.send({ event: 'hideLayer', data: { uid }, callback: resolve }));
   }
   showLayer(uid) {
     if (!this.emitter.isConnected) { return Promise.reject(dcError()); }
-    return new Promise((resolve, reject) => this.emitter.send({ event: this.ShowLayer, data: { uid }, callback: resolve }));
+    return new Promise((resolve, reject) => this.emitter.send({ event: 'showLayer', data: { uid }, callback: resolve }));
+  }
+
+  getLayers() {
+    if (!this.emitter.isConnected) { return Promise.reject(dcError()); }
+    return new Promise((resolve, reject) => this.emitter.send({ event: 'getLayers', data: {}, callback: resolve }));
+  }
+  moveLayer(uid, index) {
+    if (!this.emitter.isConnected) { return Promise.reject(dcError()); }
+    return new Promise((resolve, reject) => this.emitter.send({ event: 'moveLayer', data: { uid, index }, callback: resolve }));
   }
 
   getAnalogKey(row, col) { return getAnalogKey(this.isTwo, row, col); }
@@ -173,28 +165,11 @@ class wootingClientApi extends wootingConsts {
   
   get Layer() { return Layer; }
   get LayerInst() { return new Layer(this.isTwo); }
-
-  takeControl() {
-    if (!this.emitter.isConnected) { return Promise.reject(dcError()); }
-    return new Promise((resolve, reject) => this.emitter.send({ event: this.TakeControl, data: {}, callback: resolve }));
-  }
-  releaseControl() {
-    if (!this.emitter.isConnected) { return Promise.reject(dcError()); }
-    return new Promise((resolve, reject) => this.emitter.send({ event: this.ReleaseControl, data: {}, callback: resolve }));
-  }
-  sendFeatureRequest(buf) {
-    if (!this.emitter.isConnected) { return Promise.reject(dcError()); }
-    return new Promise((resolve, reject) => this.emitter.send({ event: this.Feature, data: { buf }, callback: resolve }));
-  }
-  sendBuffer() {
-    if (!this.emitter.isConnected) { return Promise.reject(dcError()); }
-    return new Promise((resolve, reject) => this.emitter.send({ event: this.Buffer, data: { buf }, callback: resolve }));
-  }
 }
 class wootingServerApi extends wootingConsts {
   constructor(emitter) { super(); this.emitter = emitter; emitter.api = this; }
-  profileChanged(index, map) { this.emitter.send({ event: this.ProfileChanged, data: { index, map } }); }
-  analog(update) { this.emitter.send({ event: this.AnalogUpdate, data: { update } }); }
-  shutdown() { this.emitter.send({ event: this.Shutdown, data: {} }); }
+  profileChanged(index, map) { this.emitter.send({ event: 'profileChanged', data: { index, map } }); }
+  analog(update) { this.emitter.send({ event: 'analogUpdate', data: { update } }); }
+  shutdown() { this.emitter.send({ event: 'shutdown', data: {} }); }
 }
 module.exports = function (emitter, isServer) { return (isServer ? new wootingServerApi(emitter) : new wootingClientApi(emitter)); }
