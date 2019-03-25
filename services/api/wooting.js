@@ -76,6 +76,7 @@ class wootingClientApi extends wootingConsts {
   constructor(emitter) {
     super();
     this.emitter = emitter;
+    this.ready = false;
     emitter.api = this;
     emitter.on('profileChanged', (d) => this.emit('profileChanged', d.index, d.map));
     emitter.on('analogUpdate', ({ update }) => {
@@ -85,7 +86,7 @@ class wootingClientApi extends wootingConsts {
       this.emit('analogUpdate', update);
     });
     emitter.on('shutdown', () => this.emit('shutdown'));
-    this.getKeyboardInfo().then(({ firmware, isTwo, isANSI, profile }) => {
+    emitter.on('keyboardChanged', ({ firmware, isTwo, isANSI, profile }) => {
       this.firmware = firmware;
       this.isTwo = isTwo;
       this.isOne = !isTwo;
@@ -94,16 +95,13 @@ class wootingClientApi extends wootingConsts {
       this.allKeys = new Array(isTwo ? 117 : 96);
       this.allKeys.fill(0);
       this.profile = profile;
-      this.emit('ready');
+      if (!this.ready) { this.emit('ready'); this.ready = true; }
+      else { this.emit('keyboard-changed'); }
     });
   }
-  getKeyboardInfo() {
+  registerLayer(name, description = '', z = -1) {
     if (!this.emitter.isConnected) { return Promise.reject(dcError()); }
-    return new Promise((resolve, reject) => this.emitter.send({ event: 'getKeyboardInfo', data: {}, callback: resolve }));
-  }
-  registerLayer(name) {
-    if (!this.emitter.isConnected) { return Promise.reject(dcError()); }
-    return new Promise((resolve, reject) => this.emitter.send({ event: 'registerLayer', data: { name }, callback: resolve }));
+    return new Promise((resolve, reject) => this.emitter.send({ event: 'registerLayer', data: { name, description, z }, callback: resolve }));
   }
   unregisterLayer(uid) {
     if (!this.emitter.isConnected) { return Promise.reject(dcError()); }
@@ -169,6 +167,7 @@ class wootingClientApi extends wootingConsts {
 class wootingServerApi extends wootingConsts {
   constructor(emitter) { super(); this.emitter = emitter; emitter.api = this; }
   profileChanged(index, map) { this.emitter.send({ event: 'profileChanged', data: { index, map } }); }
+  keyboardChanged(firmware, isTwo, isANSI, profile) { this.emitter.send({ event: 'keyboardChanged', data: { firmware, isTwo, isANSI, profile } }); }
   analog(update) { this.emitter.send({ event: 'analogUpdate', data: { update } }); }
   shutdown() { this.emitter.send({ event: 'shutdown', data: {} }); }
 }

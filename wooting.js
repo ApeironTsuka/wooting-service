@@ -20,6 +20,10 @@ class wootingService {
     tk.init(kb);
     tk.on('profileChanged', () => this.sendProfileChanged());
     for (let i = 0, l = layers.length; i < l; i++) { renderer.addLayer(layers[i].layer); }
+    this.bgLayer.layer.z = -1;
+    this.locksLayer.layer.z = 99;
+    renderer.z = 0;
+    renderer.sortLayers();
     renderer.init();
     this.watchWootility();
     fs.writeFileSync(`${process.cwd()}/services/ports/wooting.port`, this.emitter.port);
@@ -32,6 +36,7 @@ class wootingService {
     c.layerCounter = 0;
     c.api.watchAnalog = c.api.watchProfile = false;
     this.connections.push(c);
+    c.api.keyboardChanged(kb.getFirmwareVersion().toString(), kb.deviceConfig.isTwo, kb.deviceConfig.isANSI, kb.leds.profile);
     c.on('disconnected', () => {
       c.layers.forEach((l) => {
         let ind, x = this.layers.find((e, i) => { let ret = e.uid == `${c.id}-${l.uid}`; if (ret) { ind = i; } return ret; });
@@ -40,20 +45,13 @@ class wootingService {
       });
       this.connections.splice(this.connections.indexOf(c), 1);
     })
-    .on('getKeyboardInfo', (d, reply) => reply({
-      firmware: kb.getFirmwareVersion().toString(),
-      isTwo: kb.deviceConfig.isTwo,
-      isANSI: kb.deviceConfig.isANSI,
-      profile: kb.leds.profile
-    }))
-    .on('registerLayer', ({ name }, reply) => {
+    .on('registerLayer', ({ name, description, z }, reply) => {
       let x = c.layers.find((e) => e.name == name), uid, l;
       if (x) { reply(-1); return; }
       uid = c.layerCounter++;
-      c.layers.push(l = { name, layer: new Layer(), uid });
-      this.layers.push({ name: `${c.id}-${name}`, layer: l.layer, uid: `${c.id}-${uid}` });
-      this.renderer.addLayer(l.layer);
-      this.renderer.moveLayer(this.locksLayer.layer, this.renderer.layers.length-1);
+      c.layers.push(l = { name, description, layer: new Layer(), uid });
+      this.layers.push({ name: `${c.id}-${name}`, description, layer: l.layer, uid: `${c.id}-${uid}` });
+      this.renderer.addLayer(l.layer, z);
       x = this.layers.find((e, i) => { let ret = e.uid == this.locksLayer.uid; if (ret) { l = i; } return ret; });
       this.layers.splice(l, 1);
       this.layers.push(this.locksLayer);
@@ -92,20 +90,18 @@ class wootingService {
     })
     .on('config-getLayers', (d, reply) => {
       let out = [];
-      for (let i = 0, { layers } = this, l = layers.length; i < l; i++) { out.push({ name: layers[i].name, uid: layers[i].uid }); }
-      reply(out);
+      for (let i = 0, { layers } = this, l = layers.length; i < l; i++) { out.push({ name: layers[i].name, description: layers[i].description, uid: layers[i].uid, z: layers[i].layer.z }); }
+      reply(out.sort((a, b) => a.z > b.z ? 1 : a.z < b.z ? -1 : 0));
     })
-    .on('config-moveLayer', ({ uid, index }, reply) => {
-      // Can't move below the background or above the lock layer
-      if ((index <= 1) || (index >= this.layers.length-1)) { reply(false); }
-      // Can't move the bg or lock layers
-      else if ((uid == 'bg') || (uid == 'locks')) { reply(false); }
+    .on('config-moveLayer', ({ uid, z }, reply) => {
+      // Can't move below the background
+      if (z < 0) { reply(false); }
+      // Can't move the bg
+      else if (uid == 'bg') { reply(false); }
       else {
         let ind, x = this.layers.find((e, i) => { let ret = e.uid == uid; if (ret) { ind = i; } return ret; });
         if (x) {
-          this.layers.splice(i, 1);
-          this.layers.splice(index, 0, x);
-          this.renderer.moveLayer(x.layer, index);
+          this.renderer.moveLayer(x.layer, z);
           reply(true);
         } else { reply(false); }
       }

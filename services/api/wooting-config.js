@@ -6,9 +6,9 @@ class configClientApi extends extendedApiBaseClass {
     if (!this.p.isConnected) { return Promise.reject(dcError()); }
     return new Promise((resolve, reject) => this.p.send({ event: 'config-getLayers', data: {}, callback: resolve }));
   }
-  moveLayer(uid, index) {
+  moveLayer(uid, z) {
     if (!this.p.isConnected) { return Promise.reject(dcError()); }
-    return new Promise((resolve, reject) => this.p.send({ event: 'config-moveLayer', data: { uid, index }, callback: resolve }));
+    return new Promise((resolve, reject) => this.p.send({ event: 'config-moveLayer', data: { uid, z }, callback: resolve }));
   }
   showLayer(uid) {
     if (!this.p.isConnected) { return Promise.reject(dcError()); }

@@ -75,7 +75,7 @@ function init() {
   console.log(`Found Keyboard\nIt's a Wooting ${kb.api.isTwo?'Two':'One'}\nFirmware version: ${kb.api.firmware}`);
   let arr = [
     kb.api.registerLayer('sensor').then((uid) => { sensor = new sensorsLayer(kb.api.isTwo, uid); }),
-    kb.api.registerLayer('sleep').then((uid) => { sleep = new sleepLayer(kb.api.isTwo, uid); })
+    kb.api.registerLayer('sleep', 'Sleeeeeeeep', 100).then((uid) => { sleep = new sleepLayer(kb.api.isTwo, uid); })
   ];
   Promise.all(arr).then(() => {
     sensor.enabled = true; sleep.enabled = false;
