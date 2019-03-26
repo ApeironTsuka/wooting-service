@@ -72,10 +72,10 @@ function init() {
       this.fillColormap(1, 1, 1, Math.floor(255*((100-brightness)/100)));
     }
   }
-  console.log(`Found Keyboard\nIt's a Wooting ${kb.api.isTwo?'Two':'One'}\nFirmware version: ${kb.api.firmware}`);
+  console.log(`Found Keyboard\nIt's a ${kb.api.model}\nFirmware version: ${kb.api.firmware}`);
   let arr = [
-    kb.api.registerLayer('sensor').then((uid) => { sensor = new sensorsLayer(kb.api.isTwo, uid); }),
-    kb.api.registerLayer('sleep', 'Sleeeeeeeep', 100).then((uid) => { sleep = new sleepLayer(kb.api.isTwo, uid); })
+    kb.api.registerLayer('sensor').then((uid) => { sensor = new sensorsLayer(kb.api, uid); }),
+    kb.api.registerLayer('sleep', 'Sleeeeeeeep', 100).then((uid) => { sleep = new sleepLayer(kb.api, uid); })
   ];
   Promise.all(arr).then(() => {
     sensor.enabled = true; sleep.enabled = false;

@@ -4,8 +4,8 @@ let kb = new serviceEmitter();
 
 function apiReady() {
   class clockLayer extends kb.api.Layer {
-    constructor(uid, isTwo) {
-      super(isTwo, uid);
+    constructor(...args) {
+      super(...args);
       this.alpha = 255;
       this.tmr = setInterval(() => this.tick(), 500);
     }
@@ -30,7 +30,7 @@ function apiReady() {
       kb.api.updateLayer(this.uid, this, true).catch(() => this.stop());
     }
   }
-  kb.api.registerLayer('clock').then((uid) => { let l = new clockLayer(uid, kb.api.isTwo); });
+  kb.api.registerLayer('clock').then((uid) => { let l = new clockLayer(kb.api, uid); });
   kb.extendApi('config');
   kb.api.config.getLayers().then(console.log);
 }

@@ -1,4 +1,5 @@
 const { Keyboard } = require('wooting-sdk'),
+      { Analog } = require('wooting-sdk/analogcontroller'),
       { Toolkit, lockLayer } = require('wooting-sdk/toolkit'),
       { Layer, Renderer } = require('wooting-sdk/layered'),
       { serviceEmitter } = require('tserv-service'),
@@ -36,7 +37,15 @@ class wootingService {
     c.layerCounter = 0;
     c.api.watchAnalog = c.api.watchProfile = false;
     this.connections.push(c);
-    c.api.keyboardChanged(kb.getFirmwareVersion().toString(), kb.deviceConfig.isTwo, kb.deviceConfig.isANSI, kb.leds.profile);
+    c.api.keyboardChanged({
+      firmware: kb.getFirmwareVersion().toString(),
+      model: `Wooting ${kb.deviceConfig.isTwo ? 'Two' : 'One'}`,
+      isANSI: kb.deviceConfig.isANSI,
+      keyCount: kb.deviceConfig.isTwo ? 118 : 96,
+      rows: Analog.Rows,
+      cols: kb.deviceConfig.isTwo ? Analog.ColsTwo : Analog.ColsOne,
+      profile: kb.leds.profile
+    });
     c.on('disconnected', () => {
       c.layers.forEach((l) => {
         let ind, x = this.layers.find((e, i) => { let ret = e.uid == `${c.id}-${l.uid}`; if (ret) { ind = i; } return ret; });

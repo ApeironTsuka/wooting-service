@@ -1,50 +1,50 @@
 const { EventEmitter } = require('events'),
-      { RGB, rgbLedIndex, Keys: LKeys } = require('wooting-sdk/ledcontroller'),
-      { Analog, scanIndexArray, Keys: AKeys } = require('wooting-sdk/analogcontroller');
+      { rgbLedIndex, Keys: LKeys } = require('wooting-sdk/ledcontroller'),
+      { scanIndexArray, Keys: AKeys } = require('wooting-sdk/analogcontroller');
 function dcError() { return new Error('disconnected'); }
-function getLedKey(isTwo, row, col) {
+function getLedKey(rows, cols, keyCount, row, col) {
   let { None } = LKeys;
   if ((row < 0) || (col < 0)) { return None; }
-  else if (row >= RGB.Rows) { return None; }
-  else if ((!isTwo) && (col >= RGB.ColsOne)) { return None; }
-  else if ((isTwo) && (col >= RGB.ColsTwo)) { return None; }
+  else if (row >= rows) { return None; }
+  else if (col >= cols) { return None; }
   return rgbLedIndex[row][col];
 }
-function getAnalogKey(isTwo, row, col) {
+function getAnalogKey(rows, cols, keyCount, row, col) {
   let { None } = AKeys;
   if ((row < 0) || (col < 0)) { return None; }
-  else if (row >= Analog.Rows) { return None; }
-  else if ((!isTwo) && (col >= Analog.ColsOne)) { return None; }
-  else if ((isTwo) && (col >= Analog.ColsTwo)) { return None; }
+  else if (row >= rows) { return None; }
+  else if (col >= cols) { return None; }
   return scanIndexArray[row][col];
 }
 class Layer {
-  constructor(isTwo, uid) {
-    this.isTwo = !!isTwo;
+  constructor(api, uid) {
+    this.keyCount = api.keyCount;
+    this.rows = api.rows;
+    this.cols = api.cols;
     this.uid = uid;
-    this.map = new Array((isTwo ? 118 : 96) * 4);
+    this.map = new Array(api.keyCount * 4);
     this.map.fill(-1);
   }
-  setLoc(row, col, r, g, b, a = 255) { return this.setKey(getLedKey(this.isTwo, row, col), r, g, b, a); }
+  setLoc(row, col, r, g, b, a = 255) { return this.setKey(getLedKey(this.rows, this.cols, this.keyCount, row, col), r, g, b, a); }
   setKey(key, r, g, b, a = 255) {
     let { map } = this;
-    if ((key < 0) || (key >= (this.isTwo ? 118 : 96))) { return false; }
+    if ((key < 0) || (key >= (this.keyCount))) { return false; }
     map[key * 4] = r;
     map[key * 4 + 1] = g;
     map[key * 4 + 2] = b;
     map[key * 4 + 3] = a;
     return true;
   }
-  resetLoc(row, col) { return this.resetKey(getLedKey(this.isTwo, row, col)); }
+  resetLoc(row, col) { return this.resetKey(getLedKey(this.rows, this.cols, this.keyCount, row, col)); }
   resetKey(key) {
     let { map } = this;
-    if ((key < 0) || (key >= (this.isTwo ? 118 : 96))) { return false; }
+    if ((key < 0) || (key >= (this.keyCount))) { return false; }
     map[key * 4] = map[key * 4 + 1] = map[key * 4 + 2] = map[key * 4 + 3] = -1;
     return true;
   }
   fillColormap(r, g, b, alpha = 255) {
     let { map } = this;
-    for (let i = 0, l = (this.isTwo ? 118 : 96); i < l; i++) {
+    for (let i = 0, l = (this.keyCount); i < l; i++) {
       map[i * 4] = r;
       map[i * 4 + 1] = g;
       map[i * 4 + 2] = b;
@@ -59,7 +59,7 @@ class Layer {
   }
   setColormapNoAlpha(map, alpha = 255) {
     let { map: tmap } = this;
-    for (let i = 0, l = (this.isTwo ? 118 : 96); i < l; i++) {
+    for (let i = 0, l = (this.keyCount); i < l; i++) {
       tmap[i * 4] = map[i * 3];
       tmap[i * 4 + 1] = map[i * 3 + 1];
       tmap[i * 4 + 2] = map[i * 3 + 2];
@@ -86,13 +86,15 @@ class wootingClientApi extends wootingConsts {
       this.emit('analogUpdate', update);
     });
     emitter.on('shutdown', () => this.emit('shutdown'));
-    emitter.on('keyboardChanged', ({ firmware, isTwo, isANSI, profile }) => {
+    emitter.on('keyboardChanged', ({ firmware, model, isANSI, rows, cols, keyCount, profile }) => {
       this.firmware = firmware;
-      this.isTwo = isTwo;
-      this.isOne = !isTwo;
+      this.model = model;
       this.isANSI = isANSI;
       this.isISO = !isANSI;
-      this.allKeys = new Array(isTwo ? 117 : 96);
+      this.keyCount = keyCount;
+      this.rows = rows;
+      this.cols = cols;
+      this.allKeys = new Array(keyCount);
       this.allKeys.fill(0);
       this.profile = profile;
       if (!this.ready) { this.emit('ready'); this.ready = true; }
@@ -145,14 +147,13 @@ class wootingClientApi extends wootingConsts {
     return new Promise((resolve, reject) => this.emitter.send({ event: 'moveLayer', data: { uid, index }, callback: resolve }));
   }
 
-  getAnalogKey(row, col) { return getAnalogKey(this.isTwo, row, col); }
-  getLedKey(row, col) { return getLedKey(this.isTwo, row, col); }
-  readLoc(row, col) { return this.readKey(getAnalogKey(this.isTwo, row, col)); }
+  getAnalogKey(row, col) { return getAnalogKey(this.rows, this.cols, this.keyCount, row, col); }
+  getLedKey(row, col) { return getLedKey(this.rows, this.cols, this.keyCount, row, col); }
+  readLoc(row, col) { return this.readKey(getAnalogKey(this.rows, this.cols, this.keyCount, row, col)); }
   readKey(key) {
     if (key < 0) { return 0; }
     else if (key == AKeys.None) { return 0; }
-    else if ((this.isTwo) && (key > 117)) { return 0; }
-    else if ((!this.isTwo) && (key > 96)) { return 0; }
+    else if (key > this.keyCount) { return 0; }
     return this.allKeys[key];
   }
   readFull() {
@@ -162,12 +163,12 @@ class wootingClientApi extends wootingConsts {
   }
   
   get Layer() { return Layer; }
-  get LayerInst() { return new Layer(this.isTwo); }
+  LayerInst(uid) { return new Layer(this, uid); }
 }
 class wootingServerApi extends wootingConsts {
   constructor(emitter) { super(); this.emitter = emitter; emitter.api = this; }
   profileChanged(index, map) { this.emitter.send({ event: 'profileChanged', data: { index, map } }); }
-  keyboardChanged(firmware, isTwo, isANSI, profile) { this.emitter.send({ event: 'keyboardChanged', data: { firmware, isTwo, isANSI, profile } }); }
+  keyboardChanged({ firmware, model, isANSI, rows, cols, keyCount, profile }) { this.emitter.send({ event: 'keyboardChanged', data: { firmware, model, isANSI, rows, cols, keyCount, profile } }); }
   analog(update) { this.emitter.send({ event: 'analogUpdate', data: { update } }); }
   shutdown() { this.emitter.send({ event: 'shutdown', data: {} }); }
 }
