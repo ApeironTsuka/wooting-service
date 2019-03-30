@@ -19,7 +19,11 @@ class wootingService {
     tk.use(Toolkit.Features.AllLayered);
     tk.enable();
     tk.init(kb);
-    tk.on('profileChanged', () => this.sendProfileChanged());
+    tk.on('profileChanged', () => {
+      if (kb.digitalEnabled) { this.locksLayer.layer.enable(); }
+      else { this.locksLayer.layer.disable(); }
+      this.sendProfileChanged();
+    });
     for (let i = 0, l = layers.length; i < l; i++) { renderer.addLayer(layers[i].layer); }
     this.bgLayer.layer.z = -1;
     this.locksLayer.layer.z = 99;
