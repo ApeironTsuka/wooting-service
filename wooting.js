@@ -31,7 +31,7 @@ class wootingService {
     renderer.sortLayers();
     renderer.init();
     this.watchWootility();
-    setInterval(() => this.sendAnalogUpdates(), 20);
+    kb.analog.watch((data) => this.sendAnalogUpdates(data));
   }
   attachEvents(c) {
     let { kb } = this;
@@ -162,11 +162,11 @@ class wootingService {
       reply(this.kb.sendQuery(buf[0], buf[1], buf[2], buf[3], buf[4], true));
     });
   }
-  sendAnalogUpdates() {
+  sendAnalogUpdates(data) {
     let { connections } = this;
     for (let i = 0, l = connections.length; i < l; i++) {
       if (!connections[i].watchAnalog) { continue; }
-      connections[i].analog(this.kb.analog.readFull());
+      connections[i].analog(data);
     }
   }
   sendProfileChanged() {
