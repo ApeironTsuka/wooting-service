@@ -1,4 +1,4 @@
-const { wootingClient, Layer } = require('wooting-ipc'), fs = require('fs');
+const { wootingClient, Layer } = require('wooting-ipc');
 
 let kb = new wootingClient();
 
@@ -8,7 +8,7 @@ function ready() {
   kb.watchAnalog();
   kb.on('analogUpdate', () => {
     let x = kb.readKey(kb.Analog.Spacebar);
-    if (x != lastx) { lastx = x; l.setKey(kb.LEDs.Spacebar, 0, 0, 0, x); kb.updateOwnLayer(l, true); }
+    if (x != lastx) { lastx = x; l.setKey(kb.LEDs.Spacebar, 0, 0, 0, x); kb.updateOwnLayer(l); }
   });
 }
 

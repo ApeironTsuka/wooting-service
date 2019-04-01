@@ -1,4 +1,4 @@
-const { wootingClient, Layer } = require('wooting-ipc'), fs = require('fs');
+const { wootingClient, Layer } = require('wooting-ipc');
 
 let kb = new wootingClient();
 
@@ -26,7 +26,7 @@ class clockLayer extends Layer {
     printNum(dt.getHours(), 2);
     printNum(dt.getMinutes(), 3);
     printNum(dt.getSeconds(), 4);
-    kb.updateOwnLayer(this, true).catch(() => this.stop());
+    kb.updateOwnLayer(this).catch(() => this.stop());
   }
 }
 function ready() {

@@ -1,5 +1,4 @@
 const { wootingClient, Layer } = require('wooting-ipc'),
-      fs = require('fs'),
       cp = require('child_process'),
       sensors = require('sensors.js'),
       smi = require('node-nvidia-smi'),
@@ -78,8 +77,8 @@ function init() {
   Promise.all(arr).then(() => {
     sensor.enabled = true; sleep.enabled = false;
     init.tmr = setInterval(() => {
-      kb.updateOwnLayer(sensor, true).catch(() => clearInterval(tmr));
-      if (sleep.enabled) { sleep.tick(); kb.updateOwnLayer(sleep, true).catch(() => clearInterval(tmr)); }
+      kb.updateOwnLayer(sensor).catch(() => clearInterval(tmr));
+      if (sleep.enabled) { sleep.tick(); kb.updateOwnLayer(sleep).catch(() => clearInterval(tmr)); }
     }, 200);
     initSensors();
     initSleep();
