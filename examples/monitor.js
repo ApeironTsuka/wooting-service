@@ -52,7 +52,7 @@ function printNum(n, row) {
 let sensor, sleep;
 class sensorsLayer extends Layer {}
 class sleepLayer extends Layer {
-  constructor(...args) { super(...args); this.enabled = false; this.pause = false; this.dir = -3; }
+  constructor(...args) { super(...args); this.enabled = false; this.pause = false; this.dir = -3; kb.hideOwnLayer(this); }
   tick() {
     let { brightness, dir } = this;
     if ((!this.pause) && (brightness >= 100)) {

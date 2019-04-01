@@ -78,31 +78,14 @@ class wootingService {
       this.layers.splice(ind, 1);
       reply(true);
     })
-    .on('ipc_updateOwnLayer', ({ uid, map, alpha }, reply) => {
+    .on('ipc_updateOwnLayer', ({ uid, map }, reply) => {
       let x = c.layers.find((e) => e.uid == uid);
-      if (x) {
-        if (alpha) { x.layer.setColormap(map); }
-        else { x.layer.setColormapNoAlpha(map); }
-      }
-      reply();
-    })
-    .on('ipc_hideOwnLayer', ({ uid }, reply) => {
-      let x = c.layers.find((e) => e.uid == uid);
-      if (x) {
-        x.layer.disable();
-        reply(true);
-      } else { reply(false); }
-    })
-    .on('ipc_showOwnLayer', ({ uid }, reply) => {
-      let x = c.layers.find((e) => e.uid == uid);
-      if (x) {
-        x.layer.enable();
-        reply(true);
-      } else { reply(false); }
+      if (x) { x.layer.setColormap(map); reply(true); }
+      else { reply(false); }
     })
     .on('ipc_getLayers', (d, reply) => {
       let out = [];
-      for (let i = 0, { layers } = this, l = layers.length; i < l; i++) { out.push({ name: layers[i].name, description: layers[i].description, uid: layers[i].uid, z: layers[i].layer.z }); }
+      for (let i = 0, { layers } = this, l = layers.length; i < l; i++) { out.push({ name: layers[i].name, description: layers[i].description, uid: layers[i].uid, z: layers[i].layer.z, visible: layers[i].layer.enabled }); }
       reply(out.sort((a, b) => a.z > b.z ? 1 : a.z < b.z ? -1 : 0));
     })
     .on('ipc_moveLayer', ({ uid, z }, reply) => {
@@ -118,17 +101,10 @@ class wootingService {
         } else { reply(false); }
       }
     })
-    .on('ipc_showLayer', ({ uid }, reply) => {
+    .on('ipc_layerVisible', ({ uid, v }, reply) => {
       let x = this.layers.find((e) => e.uid == uid);
       if (x) {
-        x.layer.enable();
-        reply(true);
-      } else { reply(false); }
-    })
-    .on('ipc_hideLayer', ({ uid }, reply) => {
-      let x = this.layers.find((e) => e.uid == uid);
-      if (x) {
-        x.layer.disable();
+        if (v) { x.layer.enable(); } else { x.layer.disable(); }
         reply(true);
       } else { reply(false); }
     })
@@ -136,19 +112,19 @@ class wootingService {
     .on('ipc_unwatchAnalog', (d, reply) => { delete c.watchAnalog; reply(); })
     .on('ipc_watchProfile', (d, reply) => { c.watchProfile = true; reply(); })
     .on('ipc_unwatchProfile', (d, reply) => { delete c.watchProfile; reply(); })
-    .on('ipc_takeControl', (d, reply) => {
-      if (this.controller) { reply(false); return; }
-      this.renderer.stop();
-      this.kb.pause();
-      this.controller = c;
-      reply(true);
-    })
-    .on('ipc_releaseControl', (d, reply) => {
-      if (!this.controller) { reply(true); return; }
-      if (c != this.controller) { reply(false); return; }
-      this.kb.resume();
-      this.renderer.init();
-      delete this.controller;
+    .on('ipc_control', ({ v }, reply) => {
+      if (v) {
+        if (this.controller) { reply(false); return; }
+        this.renderer.stop();
+        this.kb.pause();
+        this.controller = c;
+      } else {
+        if (!this.controller) { reply(true); return; }
+        if (c != this.controller) { reply(false); return; }
+        this.kb.resume();
+        this.renderer.init();
+        delete this.controller;
+      }
       reply(true);
     })
     .on('ipc_feature', ({ buf }, reply) => {
