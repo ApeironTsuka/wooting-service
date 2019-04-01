@@ -1,4 +1,4 @@
-const { serviceEmitter } = require('tserv-service'),
+const { wootingClient, Layer } = require('wooting-ipc'),
       fs = require('fs'),
       cp = require('child_process'),
       sensors = require('sensors.js'),
@@ -11,10 +11,9 @@ const cmap = [
   [ 255, 127, 0 ], // orange
   [ 255, 0, 0 ] // red
 ];
-let kb = new serviceEmitter(), xss;
-kb.setIdentifier('monitor');
-kb.connectTo({ name: 'wooting', servicePath: `${process.cwd()}/..` });
-kb.on('ready', () => { kb.loadApi(); kb.api.on('ready', init); });
+let kb = new wootingClient(), xss;
+kb.connect();
+kb.on('ready', init);
 kb.on('disconnected', () => {
   xss.kill();
   clearInterval(sensor.tmr);
@@ -43,7 +42,7 @@ function tempToColor(t) {
   return out;
 }
 function printNum(n, row) {
-  let r, g, b, o = row == 4 && kb.deviceConfig.isANSI ? 2 : 1;
+  let r, g, b, o = row == 4 && kb.isANSI ? 2 : 1;
   b = Math.floor(n / 10); n -= b * 10;
   g = Math.floor(n / 5); n -= g * 5;
   r = n;
@@ -52,36 +51,35 @@ function printNum(n, row) {
   for (let i = o; i < r + o; i++) { leds.setLoc(row, i, 255, 0, 0); }
 }
 let sensor, sleep;
-function init() {
-  let { Layer } = kb.api;
-  class sensorsLayer extends Layer {}
-  class sleepLayer extends Layer {
-    constructor(...args) { super(...args); this.enabled = false; this.pause = false; this.dir = -5; }
-    tick() {
-      let { brightness, dir } = this, { api } = kb;
-      if ((!this.pause) && (brightness >= 100)) {
-        sleep.enabled = false;
-        api.hideLayer(this.uid);
-        return;
-      }
-      brightness += dir;
-      if (brightness <= 10) { dir = -dir; }
-      else if (brightness >= 100) { dir = -dir; }
-      this.brightness = brightness;
-      this.dir = dir;
-      this.fillColormap(1, 1, 1, Math.floor(255*((100-brightness)/100)));
+class sensorsLayer extends Layer {}
+class sleepLayer extends Layer {
+  constructor(...args) { super(...args); this.enabled = false; this.pause = false; this.dir = -5; }
+  tick() {
+    let { brightness, dir } = this;
+    if ((!this.pause) && (brightness >= 100)) {
+      sleep.enabled = false;
+      kb.hideOwnLayer(this);
+      return;
     }
+    brightness += dir;
+    if (brightness <= 10) { dir = -dir; }
+    else if (brightness >= 100) { dir = -dir; }
+    this.brightness = brightness;
+    this.dir = dir;
+    this.fillColormap(1, 1, 1, Math.floor(255*((100-brightness)/100)));
   }
-  console.log(`Found Keyboard\nIt's a ${kb.api.model}\nFirmware version: ${kb.api.firmware}`);
+}
+function init() {
+  console.log(`Found Keyboard\nIt's a ${kb.model}\nFirmware version: ${kb.firmware}`);
   let arr = [
-    kb.api.registerLayer('sensor').then((uid) => { sensor = new sensorsLayer(kb.api, uid); }),
-    kb.api.registerLayer('sleep', 'Sleeeeeeeep', 100).then((uid) => { sleep = new sleepLayer(kb.api, uid); })
+    kb.registerOwnLayer('sensor').then((uid) => { sensor = new sensorsLayer(kb, uid); }),
+    kb.registerOwnLayer('sleep', 'Sleeeeeeeep', 100).then((uid) => { sleep = new sleepLayer(kb, uid); })
   ];
   Promise.all(arr).then(() => {
     sensor.enabled = true; sleep.enabled = false;
     init.tmr = setInterval(() => {
-      kb.api.updateLayer(sensor.uid, sensor, true).catch(() => clearInterval(tmr));
-      if (sleep.enabled) { sleep.tick(); kb.api.updateLayer(sleep.uid, sleep, true).catch(() => clearInterval(tmr)); }
+      kb.updateOwnLayer(sensor, true).catch(() => clearInterval(tmr));
+      if (sleep.enabled) { sleep.tick(); kb.updateLayer(sleep, true).catch(() => clearInterval(tmr)); }
     }, 200);
     initSensors();
     initSleep();
@@ -122,7 +120,7 @@ function initSensors() {
       }
     })
     .then(() => {
-      let { LEDs } = kb.api, key;
+      let { LEDs } = kb, key;
       for (let i = 0, l = keys.length; i < l; i++) { key = keys[i]; sensor.setKey(LEDs[key.key], ...key.v); }
     })
     .catch((err) => { console.log(err.stack); });
@@ -139,7 +137,7 @@ function initSleep() {
           console.log('Screensaver kicked in, entering "sleep" mode..');
           sleep.brightness = 100;
           sleep.enabled = true;
-          kb.api.showLayer(sleep.uid);
+          kb.showOwnLayer(sleep);
           sleep.pause = true;
           tmr = null;
         }, 5000);

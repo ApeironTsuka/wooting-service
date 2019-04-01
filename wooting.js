@@ -2,16 +2,16 @@ const { Keyboard } = require('wooting-sdk'),
       { Analog } = require('wooting-sdk/analogcontroller'),
       { Toolkit, lockLayer } = require('wooting-sdk/toolkit'),
       { Layer, Renderer } = require('wooting-sdk/layered'),
-      { serviceEmitter } = require('tserv-service'),
+      { wootingServer } = require('wooting-ipc'),
       fs = require('fs');
 class bgLayer extends Layer { tick() { this.setColormapNoAlpha(this.kb.leds.profile.map); } }
 class wootingService {
-  constructor() { this.emitter = new serviceEmitter(); this.connections = []; }
+  constructor() { this.server = new wootingServer(); this.connections = []; }
   begin() {
-    this.emitter.on('connection', (c) => this.attachEvents(c));
-    this.emitter.init('wooting', { keep: true });
     let kb = this.kb = Keyboard.get(), tk = this.tk = new Toolkit();
     if (!kb) { console.log('No keyboard detected'); process.exit(); }
+    this.server.on('connection', (c) => this.attachEvents(c));
+    this.server.init();
     let renderer = this.renderer = new Renderer(kb), layers = this.layers = [ this.bgLayer = { name: 'Background', layer: new bgLayer(), uid: 'bg' }, this.locksLayer = { name: 'Locks', layer: new lockLayer(tk), uid: 'locks' } ];
     kb.leds.mode = Keyboard.Modes.Array;
     kb.leds.autoUpd = true;
@@ -31,24 +31,23 @@ class wootingService {
     renderer.sortLayers();
     renderer.init();
     this.watchWootility();
-    fs.writeFileSync(`${process.cwd()}/services/ports/wooting.port`, this.emitter.port);
     setInterval(() => this.sendAnalogUpdates(), 20);
   }
   attachEvents(c) {
     let { kb } = this;
-    c.loadApi();
+    this.connections.push(c);
     c.layers = [];
     c.layerCounter = 0;
-    c.api.watchAnalog = c.api.watchProfile = false;
-    this.connections.push(c);
-    c.api.keyboardChanged({
+    c.watchAnalog = c.watchProfile = false;
+    c.keyboardChanged({
       firmware: kb.getFirmwareVersion().toString(),
       model: `Wooting ${kb.deviceConfig.isTwo ? 'Two' : 'One'}`,
       isANSI: kb.deviceConfig.isANSI,
       keyCount: kb.deviceConfig.isTwo ? 118 : 96,
       rows: Analog.Rows,
       cols: kb.deviceConfig.isTwo ? Analog.ColsTwo : Analog.ColsOne,
-      profile: kb.leds.profile
+      profile: kb.leds.profile,
+      isTwo: kb.deviceConfig.isTwo
     });
     c.on('disconnected', () => {
       c.layers.forEach((l) => {
@@ -58,7 +57,7 @@ class wootingService {
       });
       this.connections.splice(this.connections.indexOf(c), 1);
     })
-    .on('registerLayer', ({ name, description, z }, reply) => {
+    .on('ipc_registerOwnLayer', ({ name, description, z }, reply) => {
       let x = c.layers.find((e) => e.name == name), uid, l;
       if (x) { reply(-1); return; }
       uid = c.layerCounter++;
@@ -70,7 +69,7 @@ class wootingService {
       this.layers.push(this.locksLayer);
       reply(uid);
     })
-    .on('unregisterLayer', ({ uid }, reply) => {
+    .on('ipc_unregisterOwnLayer', ({ uid }, reply) => {
       let ind, x = c.layers.find((e, i) => { let ret = e.uid == uid; if (ret) { ind = i; } return ret; });
       if (!x) { reply(false); return; }
       this.renderer.remLayer(x.layer);
@@ -79,7 +78,7 @@ class wootingService {
       this.layers.splice(ind, 1);
       reply(true);
     })
-    .on('updateLayer', ({ uid, map, alpha }, reply) => {
+    .on('ipc_updateOwnLayer', ({ uid, map, alpha }, reply) => {
       let x = c.layers.find((e) => e.uid == uid);
       if (x) {
         if (alpha) { x.layer.setColormap(map); }
@@ -87,26 +86,26 @@ class wootingService {
       }
       reply();
     })
-    .on('hideLayer', ({ uid }, reply) => {
+    .on('ipc_hideOwnLayer', ({ uid }, reply) => {
       let x = c.layers.find((e) => e.uid == uid);
       if (x) {
         x.layer.disable();
         reply(true);
       } else { reply(false); }
     })
-    .on('showLayer', ({ uid }, reply) => {
+    .on('ipc_showOwnLayer', ({ uid }, reply) => {
       let x = c.layers.find((e) => e.uid == uid);
       if (x) {
         x.layer.enable();
         reply(true);
       } else { reply(false); }
     })
-    .on('config-getLayers', (d, reply) => {
+    .on('ipc_getLayers', (d, reply) => {
       let out = [];
       for (let i = 0, { layers } = this, l = layers.length; i < l; i++) { out.push({ name: layers[i].name, description: layers[i].description, uid: layers[i].uid, z: layers[i].layer.z }); }
       reply(out.sort((a, b) => a.z > b.z ? 1 : a.z < b.z ? -1 : 0));
     })
-    .on('config-moveLayer', ({ uid, z }, reply) => {
+    .on('ipc_moveLayer', ({ uid, z }, reply) => {
       // Can't move below the background
       if (z < 0) { reply(false); }
       // Can't move the bg
@@ -119,32 +118,32 @@ class wootingService {
         } else { reply(false); }
       }
     })
-    .on('config-showLayer', ({ uid }, reply) => {
+    .on('ipc_showLayer', ({ uid }, reply) => {
       let x = this.layers.find((e) => e.uid == uid);
       if (x) {
         x.layer.enable();
         reply(true);
       } else { reply(false); }
     })
-    .on('config-hideLayer', ({ uid }, reply) => {
+    .on('ipc_hideLayer', ({ uid }, reply) => {
       let x = this.layers.find((e) => e.uid == uid);
       if (x) {
         x.layer.disable();
         reply(true);
       } else { reply(false); }
     })
-    .on('watchAnalog', (d, reply) => { c.api.watchAnalog = true; reply(); })
-    .on('unwatchAnalog', (d, reply) => { delete c.api.watchAnalog; reply(); })
-    .on('watchProfile', (d, reply) => { c.api.watchProfile = true; reply(); })
-    .on('unwatchProfile', (d, reply) => { delete c.api.watchProfile; reply(); })
-    .on('raw-takeControl', (d, reply) => {
+    .on('ipc_watchAnalog', (d, reply) => { c.watchAnalog = true; reply(); })
+    .on('ipc_unwatchAnalog', (d, reply) => { delete c.watchAnalog; reply(); })
+    .on('ipc_watchProfile', (d, reply) => { c.watchProfile = true; reply(); })
+    .on('ipc_unwatchProfile', (d, reply) => { delete c.watchProfile; reply(); })
+    .on('ipc_takeControl', (d, reply) => {
       if (this.controller) { reply(false); return; }
       this.renderer.stop();
       this.kb.pause();
       this.controller = c;
       reply(true);
     })
-    .on('raw-releaseControl', (d, reply) => {
+    .on('ipc_releaseControl', (d, reply) => {
       if (!this.controller) { reply(true); return; }
       if (c != this.controller) { reply(false); return; }
       this.kb.resume();
@@ -152,12 +151,12 @@ class wootingService {
       delete this.controller;
       reply(true);
     })
-    .on('raw-feature', ({ buf }, reply) => {
+    .on('ipc_feature', ({ buf }, reply) => {
       if (!this.controller) { reply(false, true); return; }
       if (c != this.controller) { reply(false, true); return; }
       reply(this.kb.sendCommand(buf, true));
     })
-    .on('raw-buffer', ({ buf }, reply) => {
+    .on('ipc_buffer', ({ buf }, reply) => {
       if (!this.controller) { reply(false, true); return; }
       if (c != this.controller) { reply(false, true); return; }
       reply(this.kb.sendQuery(buf[0], buf[1], buf[2], buf[3], buf[4], true));
@@ -166,15 +165,15 @@ class wootingService {
   sendAnalogUpdates() {
     let { connections } = this;
     for (let i = 0, l = connections.length; i < l; i++) {
-      if (!connections[i].api.watchAnalog) { continue; }
-      connections[i].api.analog(this.kb.analog.readFull());
+      if (!connections[i].watchAnalog) { continue; }
+      connections[i].analog(this.kb.analog.readFull());
     }
   }
   sendProfileChanged() {
     let { connections } = this, { profile } = this.kb.leds;
     for (let i = 0, l = connections.length; i < l; i++) {
-      if (!connections[i].api.watchProfile) { continue; }
-      connections[i].api.profileChanged(profile.id, profile.map);
+      if (!connections[i].watchProfile) { continue; }
+      connections[i].profileChanged(profile.id, profile.map);
     }
   }
   watchWootility() {
