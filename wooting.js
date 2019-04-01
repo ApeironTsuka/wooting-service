@@ -47,7 +47,8 @@ class wootingService {
       rows: Analog.Rows,
       cols: kb.deviceConfig.isTwo ? Analog.ColsTwo : Analog.ColsOne,
       profile: kb.leds.profile,
-      isTwo: kb.deviceConfig.isTwo
+      isTwo: kb.deviceConfig.isTwo,
+      actuationPoint: kb.actuationPoint
     });
     c.on('disconnected', () => {
       c.layers.forEach((l) => {
