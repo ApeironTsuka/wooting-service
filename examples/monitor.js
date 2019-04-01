@@ -53,7 +53,7 @@ function printNum(n, row) {
 let sensor, sleep;
 class sensorsLayer extends Layer {}
 class sleepLayer extends Layer {
-  constructor(...args) { super(...args); this.enabled = false; this.pause = false; this.dir = -5; }
+  constructor(...args) { super(...args); this.enabled = false; this.pause = false; this.dir = -3; }
   tick() {
     let { brightness, dir } = this;
     if ((!this.pause) && (brightness >= 100)) {
@@ -79,7 +79,7 @@ function init() {
     sensor.enabled = true; sleep.enabled = false;
     init.tmr = setInterval(() => {
       kb.updateOwnLayer(sensor, true).catch(() => clearInterval(tmr));
-      if (sleep.enabled) { sleep.tick(); kb.updateLayer(sleep, true).catch(() => clearInterval(tmr)); }
+      if (sleep.enabled) { sleep.tick(); kb.updateOwnLayer(sleep, true).catch(() => clearInterval(tmr)); }
     }, 200);
     initSensors();
     initSleep();

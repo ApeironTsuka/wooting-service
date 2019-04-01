@@ -62,7 +62,7 @@ class wootingService {
       if (x) { reply(-1); return; }
       uid = c.layerCounter++;
       c.layers.push(l = { name, description, layer: new Layer(), uid });
-      this.layers.push({ name: `${c.id}-${name}`, description, layer: l.layer, uid: `${c.id}-${uid}` });
+      this.layers.push({ name, description, layer: l.layer, uid: `${c.id}-${uid}` });
       this.renderer.addLayer(l.layer, z);
       x = this.layers.find((e, i) => { let ret = e.uid == this.locksLayer.uid; if (ret) { l = i; } return ret; });
       this.layers.splice(l, 1);
