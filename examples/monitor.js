@@ -33,6 +33,7 @@ function cpuStatPromise(core) {
 function blend(a,b,x) { if (a == b) { return a; } return Math.floor((a * x) + (b * (1 - x))); }
 function tempToColor(t) {
   let out = [], x = (t % 20) / 20, c1, c2;
+  if (Number.isNaN(t)) { return [ 0, 0, 0 ]; } // apparently the sensors return NaN sometimes...
   if (t >= 100) { c1 = c2 = 4; }
   else if (t < 20) { c1 = c2 = 0; }
   else { c2 = Math.floor(t / 20); c1 = c2-1; }
@@ -52,16 +53,16 @@ function printNum(n, row) {
 let sensor, sleep;
 class sensorsLayer extends Layer {}
 class sleepLayer extends Layer {
-  constructor(...args) { super(...args); this.enabled = false; this.pause = false; this.dir = -3; kb.hideOwnLayer(this); }
+  constructor(...args) { super(...args); this.enabled = false; this.pause = false; this.dir = -3; kb.disableOwnLayer(this); }
   tick() {
     let { brightness, dir } = this;
     if ((!this.pause) && (brightness >= 100)) {
       sleep.enabled = false;
-      kb.hideOwnLayer(this);
+      kb.disableOwnLayer(this);
       return;
     }
     brightness += dir;
-    if (brightness <= 10) { dir = -dir; }
+    if (brightness <= 30) { dir = -dir; }
     else if (brightness >= 100) { dir = -dir; }
     this.brightness = brightness;
     this.dir = dir;
@@ -78,7 +79,7 @@ function init() {
     sensor.enabled = true; sleep.enabled = false;
     init.tmr = setInterval(() => {
       kb.updateOwnLayer(sensor).catch(() => clearInterval(tmr));
-      if (sleep.enabled) { sleep.tick(); kb.updateOwnLayer(sleep).catch(() => clearInterval(tmr)); }
+      if (sleep.enabled) { sleep.tick(); kb.updateOwnLayer(sleep).catch((e) => { console.log(e); clearInterval(tmr); }); }
     }, 200);
     initSensors();
     initSleep();
@@ -136,7 +137,7 @@ function initSleep() {
           console.log('Screensaver kicked in, entering "sleep" mode..');
           sleep.brightness = 100;
           sleep.enabled = true;
-          kb.showOwnLayer(sleep);
+          kb.enableOwnLayer(sleep);
           sleep.pause = true;
           tmr = null;
         }, 5000);

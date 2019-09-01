@@ -7,6 +7,16 @@ const { Keyboard } = require('wooting-sdk'),
 class bgLayer extends Layer { tick() { this.setColormapNoAlpha(this.kb.leds.profile.map); } }
 class wootingService {
   constructor() { this.server = new wootingServer(); this.connections = []; }
+  load() {
+    let conf, path = `${__dirname}/conf.json`;
+    if (fs.existsSync(path)) { conf = JSON.parse(fs.readFileSync(path, 'utf8')); }
+    else { conf = { watches: [] }; }
+    this.conf = conf;
+  }
+  save() {
+    let out = { watches: [] };
+    fs.writeFileSync(`${__dirname}/conf.json`, JSON.stringify(out, null, '  '), 'utf8');
+  }
   begin() {
     let kb = this.kb = Keyboard.get(), tk = this.tk = new Toolkit();
     if (!kb) { console.log('No keyboard detected'); process.exit(); }
@@ -32,6 +42,7 @@ class wootingService {
     renderer.init();
     this.watchWootility();
     kb.analog.watch((data) => this.sendAnalogUpdates(data));
+    this.load();
   }
   attachEvents(c) {
     let { kb } = this;
@@ -54,6 +65,7 @@ class wootingService {
       c.layers.forEach((l) => {
         let ind, x = this.layers.find((e, i) => { let ret = e.uid == `${c.id}-${l.uid}`; if (ret) { ind = i; } return ret; });
         this.renderer.remLayer(l.layer);
+        this.sendLayers({ event: 'rem', uid: this.layers[ind].uid }, c);
         this.layers.splice(ind, 1);
       });
       this.connections.splice(this.connections.indexOf(c), 1);
@@ -63,11 +75,12 @@ class wootingService {
       if (x) { reply(-1); return; }
       uid = c.layerCounter++;
       c.layers.push(l = { name, description, layer: new Layer(), uid });
-      this.layers.push({ name, description, layer: l.layer, uid: `${c.id}-${uid}` });
+      this.layers.push({ name, description, layer: l.layer, uid: `${c.id}-${uid}`, sid: uid, con: c });
       this.renderer.addLayer(l.layer, z);
       x = this.layers.find((e, i) => { let ret = e.uid == this.locksLayer.uid; if (ret) { l = i; } return ret; });
       this.layers.splice(l, 1);
       this.layers.push(this.locksLayer);
+      this.sendLayers({ event: 'add', uid: `${c.id}-${uid}`, name, description, z }, c);
       reply(uid);
     })
     .on('ipc_unregisterOwnLayer', ({ uid }, reply) => {
@@ -76,6 +89,7 @@ class wootingService {
       this.renderer.remLayer(x.layer);
       c.layers.splice(ind, 1);
       this.layers.find((e, i) => { let ret = e.uid == `${c.id}-${uid}`; if (ret) { ind = i; } return ret; });
+      this.sendLayers({ event: 'rem', uid: this.layers[i].uid }, c);
       this.layers.splice(ind, 1);
       reply(true);
     })
@@ -86,7 +100,7 @@ class wootingService {
     })
     .on('ipc_getLayers', (d, reply) => {
       let out = [];
-      for (let i = 0, { layers } = this, l = layers.length; i < l; i++) { out.push({ name: layers[i].name, description: layers[i].description, uid: layers[i].uid, z: layers[i].layer.z, visible: layers[i].layer.enabled }); }
+      for (let i = 0, { layers } = this, l = layers.length; i < l; i++) { out.push({ name: layers[i].name, description: layers[i].description, uid: layers[i].uid, z: layers[i].layer.z, enabled: layers[i].layer.enabled }); }
       reply(out.sort((a, b) => a.z > b.z ? 1 : a.z < b.z ? -1 : 0));
     })
     .on('ipc_moveLayer', ({ uid, z }, reply) => {
@@ -98,14 +112,18 @@ class wootingService {
         let ind, x = this.layers.find((e, i) => { let ret = e.uid == uid; if (ret) { ind = i; } return ret; });
         if (x) {
           this.renderer.moveLayer(x.layer, z);
+          if ((x.con != c) && (x.con)) { x.con.ownLayerChanged(x.sid, z, x.layer.enabled); }
+          this.sendLayers({ event: 'move', uid, z }, c);
           reply(true);
         } else { reply(false); }
       }
     })
-    .on('ipc_layerVisible', ({ uid, v }, reply) => {
+    .on('ipc_layerEnabled', ({ uid, v }, reply) => {
       let x = this.layers.find((e) => e.uid == uid);
       if (x) {
         if (v) { x.layer.enable(); } else { x.layer.disable(); }
+        if ((x.con != c) && (x.con)) { x.con.ownLayerChanged(x.sid, x.layer.z, v); }
+        this.sendLayers({ event: 'enable', uid, enabled: v }, c);
         reply(true);
       } else { reply(false); }
     })
@@ -113,6 +131,8 @@ class wootingService {
     .on('ipc_unwatchAnalog', (d, reply) => { delete c.watchAnalog; reply(); })
     .on('ipc_watchProfile', (d, reply) => { c.watchProfile = true; reply(); })
     .on('ipc_unwatchProfile', (d, reply) => { delete c.watchProfile; reply(); })
+    .on('ipc_watchLayers', (d, reply) => { c.watchLayers = true; reply(); })
+    .on('ipc_unwatchLayers', (d, reply) => { delete c.watchLayers; reply(); })
     .on('ipc_control', ({ v }, reply) => {
       if (v) {
         if (this.controller) { reply(false); return; }
@@ -151,6 +171,14 @@ class wootingService {
     for (let i = 0, l = connections.length; i < l; i++) {
       if (!connections[i].watchProfile) { continue; }
       connections[i].profileChanged(profile.id, profile.map);
+    }
+  }
+  sendLayers(o, source) {
+    let { connections } = this;
+    for (let i = 0, l = connections.length; i < l; i++) {
+      if (!connections[i].watchLayers) { continue; }
+      if (connections[i] == source) { continue; }
+      connections[i].layerChanged(o);
     }
   }
   watchWootility() {

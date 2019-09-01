@@ -1,0 +1,148 @@
+<html>
+<head>
+<style>
+.bar {
+ overflow: hidden;
+  opacity: 1.0;
+  padding: 0px 0px 5px 0px;
+  line-height: 20px;
+  width: 800px;
+}
+.bar .inner {
+  border: 1px dotted #000;
+  font-size: 14px;
+  padding: 0px 3px;
+  clear: both;
+  white-space: nowrap;
+  overflow: hidden;
+  text-align: left;
+}
+.bar span {
+  display: inline-block;
+  padding: 0px 3px;
+}
+.bar .acon {
+  float: right;
+  position: relative;
+  top: 8px;
+}
+.bar a {
+  display: inline-block;
+  padding: 0px 3px;
+}
+</style>
+<script>
+let sock, layers;
+class Layer {
+  constructor(layer) {
+    let container = document.createElement('div'),
+        inner = document.createElement('div'),
+        uid = document.createElement('span'),
+        name = document.createElement('span'),
+        desc = document.createElement('span'),
+        z = document.createElement('span'),
+        acon = document.createElement('span'),
+        up = document.createElement('a'),
+        enDisable = document.createElement('a'),
+        down = document.createElement('a');
+    container.className = 'bar';
+    inner.className = 'inner';
+    acon.className = 'acon';
+    up.href = enDisable.href = down.href = '#';
+    container.appendChild(inner);
+    inner.appendChild(acon);
+    acon.appendChild(up);
+    acon.appendChild(document.createElement('br'));
+    acon.appendChild(enDisable);
+    acon.appendChild(document.createElement('br'));
+    acon.appendChild(down);
+    inner.appendChild(uid);
+    inner.appendChild(document.createElement('br'));
+    inner.appendChild(name);
+    inner.appendChild(document.createElement('br'));
+    inner.appendChild(desc);
+    inner.appendChild(document.createElement('br'));
+    inner.appendChild(z);
+    up.innerHTML = 'Move up';
+    down.innerHTML = 'Move down';
+    up.onclick = () => this.upClicked();
+    down.onclick = () => this.downClicked();
+    enDisable.onclick = () => this.enDisableClicked();
+    this.els = { container, uid, name, desc, z, enDisable, up, down };
+    this.layer = layer;
+  }
+  add() { document.getElementById('layers').appendChild(this.els.container); }
+  rem() { document.getElementById('layers').removeChild(this.els.container); }
+  upClicked() {
+    let ind = this.layerInd+1;
+    if (ind > layers.length - 1) { return; }
+    sock.send({ ev: 'move', uid: this.layer.uid, z: layers[ind].z+1 });
+  }
+  downClicked() {
+    let ind = this.layerInd-1;
+    if (ind <= 0) { return; }
+    sock.send({ ev: 'move', uid: this.layer.uid, z: layers[ind].z-1 });
+  }
+  enDisableClicked() { sock.send({ ev: 'enable', uid: this.layer.uid, enabled: !this.layer.enabled }); }
+  update() {
+    let { layer, els: { uid, name, desc, z, enDisable, up, down } } = this;
+    uid.innerHTML = `UID: ${layer.uid}`;
+    name.innerHTML = `Name: ${layer.name}`;
+    desc.innerHTML = `Desc: ${layer.description}`;
+    z.innerHTML = `Z: ${layer.z}`;
+    enDisable.innerHTML = layer.enabled ? 'Disable' : 'Enable';
+    let ind = this.layerInd = layers.indexOf(layer);
+    up.style.visibility = down.style.visibility = 'visible';
+    if (layer.uid == 'bg') { up.style.visibility = down.style.visibility = 'hidden'; }
+    else if (ind == 1) { down.style.visibility = 'hidden'; }
+    else if (ind == layers.length - 1) { up.style.visibility = 'hidden'; }
+  }
+}
+function createUI() {
+  document.getElementById('layers').innerHTML = '';
+  for (let i = layers.length-1; i >= 0; i--) {
+    let layer = layers[i].obj ? layers[i].obj : new Layer(layers[i]);
+    layers[i].obj = layer;
+    layer.update();
+    layer.add();
+  }
+}
+function sortLayers() {
+  layers = layers.sort((a, b) => a.z > b.z ? 1 : a.z < b.z ? -1 : 0);
+  createUI();
+}
+window.addEventListener('load', function () {
+  sock = new WebSocket(`ws://${location.host}`, 'config');
+  sock.onopen = function () { this.send({ ev: 'get' }); };
+  sock.onmessage = function (m) {
+    let o = JSON.parse(m.data);
+    switch (o.ev) {
+      case 'list':
+        layers = o.layers;
+        for (let i = 0, l = layers.length; i < l; i++) { layers[layers[i].uid] = layers[i]; }
+        createUI();
+        break;
+      case 'add': layers.push(o.layer); sortLayers(); break;
+      case 'rem':
+        {
+          delete layers[o.uid];
+          let ind, x = layers.find((e, i) => { let ret = e.uid == o.uid; if (ret) { ind = i; } return ret; });
+          layers.splice(ind, 1);
+          createUI();
+        }
+        break;
+      case 'move': layers[o.uid].z = o.z; sortLayers(); break;
+      case 'enable': layers[o.uid].enabled = o.enabled; layers[o.uid].obj.update(); break;
+      default: break;
+    }
+  };
+  sock.onclose = function () {};
+  sock._send = sock.send;
+  sock.send = function (d) { if (this.readyState == WebSocket.OPEN) { this._send(JSON.stringify(d)); } };
+});
+</script>
+</head>
+<body>
+<div id="layers"></div>
+</body>
+</html>
